@@ -1,0 +1,506 @@
+openapi: 3.0.3
+info:
+  title: Travel Social Network API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+
+security:
+  - bearerAuth: []
+
+# ---------------- COMPONENTS ----------------
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    QueryLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 10
+    QueryCursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+
+  responses:
+    BadRequestError:
+      description: Bad Request (Неверные входные данные)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "VALIDATION_ERROR"
+            message: "Поле 'text' обязательно для заполнения."
+            
+    UnauthorizedError:
+      description: Unauthorized (Неверный токен или логин/пароль)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Недействительный, отсутствующий или просроченный токен."
+            
+    NotFoundError:
+      description: Resource Not Found (Ресурс не найден)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "Запрашиваемый ресурс не найден."
+            
+    NoContent:
+      description: Успешно выполнено, тело ответа отсутствует
+
+  schemas:
+    # Теперь базовая схема ошибки чистая, без захардкоженных примеров
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: "user@example.com" }
+        password: { type: string, example: "securepass123" }
+
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    StandardStatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: "success"
+
+    UserCreateRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email: { type: string, format: email, example: "user@example.com" }
+        password: { type: string, example: "securepass123" }
+        name: { type: string, example: "Alex Explorer" }
+
+    UserResponse:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string, example: "usr_12345" }
+        email: { type: string, format: email, example: "user@example.com" }
+        name: { type: string, example: "Alex Explorer" }
+
+    PostCreateRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, example: "Just arrived in Bali! 🌴" }
+        images:
+          type: array
+          items: { type: string, format: uri }
+          example: ["https://example.com/bali1.jpg"]
+        place_tag: { type: string, example: "bali_indonesia" }
+
+    PostResponse:
+      type: object
+      required: [post_id, text, author_id, created_at]
+      properties:
+        post_id: { type: string, example: "post_789" }
+        text: { type: string, example: "Just arrived in Bali! 🌴" }
+        images:
+          type: array
+          items: { type: string, format: uri }
+        place_tag: { type: string, example: "bali_indonesia" }
+        author_id: { type: string, example: "usr_12345" }
+        created_at: { type: string, format: date-time }
+
+    PostUpdateRequest:
+      type: object
+      properties:
+        text: { type: string, example: "Updated text about Bali!" }
+        images:
+          type: array
+          items: { type: string, format: uri }
+        place_tag: { type: string, example: "bali_indonesia" }
+
+    CommentCreateRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, example: "Amazing view! Enjoy your trip." }
+
+    CommentResponse:
+      type: object
+      required: [comment_id, post_id, text, author_id, created_at]
+      properties:
+        comment_id: { type: string, example: "cmt_456" }
+        post_id: { type: string, example: "post_789" }
+        text: { type: string, example: "Amazing view! Enjoy your trip." }
+        author_id: { type: string, example: "usr_999" }
+        created_at: { type: string, format: date-time }
+
+    ReactionRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, example: "like" }
+
+    PlaceResponse:
+      type: object
+      required: [tag, post_count]
+      properties:
+        tag: { type: string, example: "paris_france" }
+        post_count: { type: integer, example: 1450 }
+
+    FeedResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PostResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_abc123" }
+
+    CommentListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CommentResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_def456" }
+
+    PopularPlacesResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PlaceResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_ghi789" }
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Posts
+  - name: Comments
+  - name: Reactions
+  - name: Subscriptions
+  - name: Feed
+  - name: Places
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        "200":
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        "201":
+          description: Пользователь создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        "200":
+          description: Токен обновлен
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token]
+                properties:
+                  access_token: { type: string }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+
+  /users/{user_id}:
+    get:
+      tags: [Users]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, example: "usr_12345" }
+      responses:
+        "200":
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /posts:
+    post:
+      tags: [Posts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostCreateRequest' }
+      responses:
+        "201":
+          description: Пост успешно создан (Full Entity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+
+  /posts/{post_id}:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema: { type: string, example: "post_789" }
+    get:
+      tags: [Posts]
+      responses:
+        "200":
+          description: Успешно
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    put:
+      tags: [Posts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostUpdateRequest' }
+      responses:
+        "200":
+          description: Пост обновлен (Full Entity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Posts]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /posts/{post_id}/comments:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema: { type: string, example: "post_789" }
+    post:
+      tags: [Comments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentCreateRequest' }
+      responses:
+        "201":
+          description: Комментарий создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    get:
+      tags: [Comments]
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список комментариев
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentListResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /comments/{comment_id}:
+    parameters:
+      - name: comment_id
+        in: path
+        required: true
+        schema: { type: string, example: "cmt_456" }
+    put:
+      tags: [Comments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentCreateRequest' }
+      responses:
+        "200":
+          description: Комментарий обновлен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Comments]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /posts/{post_id}/reactions:
+    parameters:
+      - name: post_id
+        in: path
+        required: true
+        schema: { type: string, example: "post_789" }
+    post:
+      tags: [Reactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReactionRequest' }
+      responses:
+        "200":
+          description: Реакция успешно добавлена/изменена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StandardStatusResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Reactions]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /subscriptions/{target_user_id}:
+    parameters:
+      - name: target_user_id
+        in: path
+        required: true
+        schema: { type: string, example: "usr_999" }
+    post:
+      tags: [Subscriptions]
+      responses:
+        "200":
+          description: Подписка успешно оформлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StandardStatusResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+    delete:
+      tags: [Subscriptions]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+
+  /feed:
+    get:
+      tags: [Feed]
+      parameters:
+        - name: subscription_only
+          in: query
+          schema: { type: boolean, example: true }
+        - name: place_tag
+          in: query
+          schema: { type: string, example: "bali_indonesia" }
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Лента постов
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeedResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+
+  /places/popular:
+    get:
+      tags: [Places]
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Популярные места
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PopularPlacesResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
