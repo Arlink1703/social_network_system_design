@@ -167,6 +167,8 @@ Seconds/day = 86,400
 
 ---
 
+Write RPS = 347 + 1,157 + 17 + 17 = 1,538 RPS
+Read RPS = 5,787 + 5,787 + 1,736 = 13,310 RPS
 
 # Расчёт трафика
 
@@ -204,6 +206,7 @@ Seconds/day = 86,400
 | post_id | 8 байт |
 | user_id | 8 байт |
 | text | 200 байт |
+| images_url | 60 байт |
 | created_at | 8 байт |
 
 ### Варианты
@@ -213,18 +216,18 @@ Seconds/day = 86,400
 
 #### 2. Комментарий с картинкой (1/10)
 
-≈ 200 KB
+= 60 B
 
 ---
 
 ### Средний размер комментария
 
 ```text
-0.9 × 232 B + 0.1 × 200 KB
-≈ ~20 KB
+0.9 × 232 B + 0.1 × 60 B
+≈ 214 B
 ```
 
-Средний комментарий = **~20 KB**
+Средний комментарий = **~214 B**
 
 ---
 # Реакции
@@ -310,11 +313,21 @@ Write:
 
 Read:
 
-1,736 RPS × 20 KB ≈ 34,720 KB/s ≈ 34.7 MB/s
+1,736 RPS × 214 B ≈ 371.5 KB/s
 
 Write
 
-347 RPS × 20 KB ≈ 6940 KB/s ≈ 6.8 MB/s
+347 RPS × 214 B ≈ 74 KB/s
+
+## Общий трафик
+
+Write 
+
+17+17+74= 108 KB/s
+
+Read
+
+85 + 57,870 + 57,870 + 371.5 = 116,196.5 KB/s ≈ 113.5 MB/s
 
 # Расчет одновременных соединений
 
@@ -322,3 +335,110 @@ Write
 ```text
 Connections = 10 000 000 * 0.1 = 1 000 000
 ```
+
+# Capacity 
+(на один год)
+
+## Основной рассчет
+
+108 KB * 86400 * 365 = 3.4 Tb
+
+
+## Рассчет для картинок
+
+### Пост
+10,000,000 × 1/7 * 365 = 521,428,571 постов В год => 521,428,571 × 3 (картинок на пост) =1,564,285,713 картинок в год
+
+### Комментарий (1/10)
+
+10,000,000×3×365=10,950,000,000 комментариев в год => 10,950,000,000 × 0.1 = 1,095,000,000
+
+### Итого картинок 
+1,564,285,713+1,095,000,000=2,659,285,713 картинок в год
+
+### Capacity 
+
+2,659,285,713 × 200KB =531,857,142,600 KB ≈ 531,857 GB ≈ 532 TB/year
+
+# Выбор диска
+
+## IOPS
+
+## POSTS
+
+Write + Read (posts + feed + search)
+IOPS = 5,821 ops/sec
+Traffic = 113 MB/s
+Storage = 3.4 TB/year (metadata only)
+
+HDD
+IOPS: 5,821 ops/sec / 100 IOPS = 59 disks
+Bandwidth: 113 MB/s / 100 MB/s = 2 disk
+Capacity: 3.4 TB / 32 TB = 1 disk
+Result: max(59, 2, 1) = 59 disks
+
+SSD (SATA)
+IOPS: 5,821 ops/sec / 1,000 IOPS = 6 disks
+Bandwidth: 113 MB/s / 500 MB/s = 1 disk
+Capacity: 3.4 TB / 100 TB = 1 disk
+Result: max(6, 1, 1) = 6 disks
+
+SSD (NVMe)
+IOPS: 5,821 ops/sec / 10,000 IOPS = 1 disk
+Bandwidth: 113 MB/s / 3000 MB/s = 1 disk
+Capacity: 3.4 TB / 30 TB = 1 disk
+Result: max(1, 1, 1) = 1 disk
+
+## COMMENTS
+
+IOPS = 2,083 ops/sec
+Traffic = 0.45 MB/s
+Storage = 0.85 TB/year (metadata only)
+
+HDD
+IOPS: 2,083 ops/sec / 100 IOPS = 21 disks
+Bandwidth: 0.45 MB/s / 100 MB/s = 1 disk
+Capacity: 0.85 TB / 32 TB = 1 disk
+Result: max(21, 1, 1) = 21 disks
+
+SSD (SATA)
+IOPS: 2,083 ops/sec / 1,000 IOPS = 3 disks
+Bandwidth: 0.45 MB/s / 500 MB/s = 1 disk
+Capacity: 0.85 TB / 100 TB = 1 disk
+Result: max(3, 1, 1) = 3 disks
+
+SSD (NVMe)
+IOPS: 2,083 ops/sec / 10,000 IOPS = 1 disk
+Bandwidth: 0.45 MB/s / 3000 MB/s = 1 disk
+Capacity: 0.85 TB / 30 TB = 1 disk
+Result: max(1, 1, 1) = 1 disk
+
+## SOCIAL (reactions + subscriptions + followers)
+
+IOPS = 1,191 ops/sec
+Traffic = 2.4 MB/s
+Storage = ~0.1 TB/year (metadata only)
+
+HDD
+IOPS: 1,191 ops/sec / 100 IOPS = 12 disks
+Bandwidth: 2.4 MB/s / 100 MB/s = 1 disk
+Capacity: 0.1 TB / 32 TB = 1 disk
+Result: max(12, 1, 1) = 12 disks
+
+SSD (SATA)
+IOPS: 1,191 ops/sec / 1,000 IOPS = 2 disks
+Bandwidth: 2.4 MB/s / 500 MB/s = 1 disk
+Capacity: 0.1 TB / 100 TB = 1 disk
+Result: max(2, 1, 1) = 2 disks
+
+SSD (NVMe)
+IOPS: 1,191 ops/sec / 10,000 IOPS = 1 disk
+Bandwidth: 2.4 MB/s / 3000 MB/s = 1 disk
+Capacity: 0.1 TB / 30 TB = 1 disk
+Result: max(1, 1, 1) = 1 disk
+
+## TOTAL
+
+HDD: 59 + 21 + 12 = 92 disks
+SSD SATA: 6 + 3 + 2 = 11 disks
+SSD NVMe: 1 + 1 + 1 = 3 disks
