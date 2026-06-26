@@ -1,0 +1,77 @@
+
+Table users {
+  id integer [primary key]
+  name varchar(255)
+  last_name varchar(255)
+  nick_name varchar(255)
+  tag varchar(255) [unique]
+  email varchar(320) [unique]
+  phone_num varchar(12) [unique]
+  created_at timestamp
+  
+}
+
+Table locations {
+  id integer [primary key]
+  name varchar(255)
+  full_name varchar(255)
+  coordinates point
+}
+
+Table blog_posts {
+  id integer [primary key]
+  user_id integer [not null]
+  text text
+  images_url text
+  location_id integer
+  comments_num integer
+  reactions jsonb
+  created_at timestamp
+}
+
+Table comments {
+  id integer [primary key]
+  entity_id integer
+  entity_type integer
+  user_id integer
+  text text
+  created_at timestamp
+}
+
+Table reactions {
+  entity_id integer
+  entity_type integer
+  user_id integer
+  reaction_type varchar(25)
+
+  indexes {
+    (entity_id, entity_type, user_id) [pk]
+  }
+}
+
+Table followers {
+  followee_id integer
+  follower_id integer
+  created_at timestamp
+
+  indexes {
+    (followee_id, follower_id) [pk]
+  }
+}
+
+// ---------------- RELATIONS ----------------
+
+Ref: blog_posts.user_id > users.id
+Ref: blog_posts.location_id > locations.id
+
+Ref: comments.user_id > users.id
+
+Ref: reactions.user_id > users.id
+
+Ref: followers.followee_id > users.id
+Ref: followers.follower_id > users.id
+
+
+Ref: "reactions"."entity_id" < "blog_posts"."id"
+
+Ref: "reactions"."entity_id" < "comments"."id"
