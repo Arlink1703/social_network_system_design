@@ -9,14 +9,22 @@ Table post_comments_counter {
 }
 
 Table post_reactions_counter {
-  entity_id integer
-  entity_type integer
-
+  post_id integer
   reaction_type varchar(25)
   reactions_num integer
 
   indexes {
-    (entity_id, entity_type) [pk]
+    (post_id, reaction_type) [pk]
+  }
+}
+
+Table comment_reactions_counter {
+  comment_id integer
+  reaction_type varchar(25)
+  reactions_num integer
+
+  indexes {
+    (comment_id, reaction_type) [pk]
   }
 }
 
