@@ -1,0 +1,715 @@
+openapi: 3.0.3
+info:
+  title: Travel Social Network API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+
+security:
+  - bearerAuth: []
+
+# ---------------- COMPONENTS ----------------
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    QueryLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 10
+        minimum: 1
+        maximum: 100
+    QueryCursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+
+    PathUserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, example: "usr_12345" }
+    PathPostId:
+      name: post_id
+      in: path
+      required: true
+      schema: { type: string, example: "post_789" }
+    PathCommentId:
+      name: comment_id
+      in: path
+      required: true
+      schema: { type: string, example: "cmt_456" }
+
+  responses:
+    BadRequestError:
+      description: Bad Request (Неверные входные данные)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "VALIDATION_ERROR"
+            message: "Поле 'text' обязательно для заполнения."
+
+    UnauthorizedError:
+      description: Unauthorized (Неверный токен или логин/пароль)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Недействительный, отсутствующий или просроченный токен."
+
+    NotFoundError:
+      description: Resource Not Found (Ресурс не найден)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "Запрашиваемый ресурс не найден."
+
+    InternalServerError:
+      description: Internal Server Error (Внутренняя ошибка сервиса)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INTERNAL_ERROR"
+            message: "Внутренняя ошибка сервиса, повторите запрос позже."
+
+    NoContent:
+      description: Успешно выполнено, тело ответа отсутствует
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: "user@example.com" }
+        password: { type: string, example: "securepass123" }
+
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    StandardStatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: "success"
+
+    UserCreateRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email: { type: string, format: email, example: "user@example.com" }
+        password: { type: string, example: "securepass123" }
+        name: { type: string, example: "Alex Explorer" }
+
+    UserResponse:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string, example: "usr_12345" }
+        email: { type: string, format: email, example: "user@example.com" }
+        name: { type: string, example: "Alex Explorer" }
+
+    UserPreviewResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, example: "usr_12345" }
+        name: { type: string, example: "Alex Explorer" }
+        avatar_url: { type: string, format: uri, nullable: true }
+
+    UserListResponse:
+      type: object
+      required: [items, total_count, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/UserPreviewResponse' }
+        total_count: { type: integer, example: 1450 }
+        next_cursor: { type: string, nullable: true, example: "cursor_abc123" }
+
+    # ---- Media ----
+    MediaUploadRequest:
+      type: object
+      required: [content_type, size_bytes]
+      properties:
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+          example: "image/jpeg"
+        size_bytes: { type: integer, example: 204800, maximum: 10485760 }
+
+    MediaUploadResponse:
+      type: object
+      required: [media_id, upload_url, expires_at]
+      properties:
+        media_id: { type: string, example: "med_abc123" }
+        upload_url:
+          type: string
+          format: uri
+          description: Presigned URL для PUT-запроса с телом файла напрямую в объектное хранилище
+          example: "https://storage.example.com/upload/med_abc123?signature=..."
+        expires_at: { type: string, format: date-time }
+
+    # ---- Posts ----
+    PostCreateRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, example: "Just arrived in Bali! 🌴" }
+        media_ids:
+          type: array
+          maxItems: 10
+          items: { type: string }
+          example: ["med_abc123", "med_def456"]
+        place_tag: { type: string, example: "bali_indonesia" }
+
+    PostResponse:
+      type: object
+      required: [post_id, text, author_id, created_at, reactions_count, comments_count]
+      properties:
+        post_id: { type: string, example: "post_789" }
+        text: { type: string, example: "Just arrived in Bali! 🌴" }
+        images:
+          type: array
+          description: CDN-ссылки на загруженные медиа
+          items: { type: string, format: uri }
+          example: ["https://cdn.example.com/med_abc123.jpg"]
+        place_tag: { type: string, example: "bali_indonesia" }
+        author_id: { type: string, example: "usr_12345" }
+        created_at: { type: string, format: date-time }
+        reactions_count: { type: integer, example: 1450 }
+        comments_count: { type: integer, example: 37 }
+        my_reaction:
+          type: string
+          nullable: true
+          description: Реакция текущего пользователя на пост, null если её нет
+          example: "like"
+
+    PostUpdateRequest:
+      type: object
+      properties:
+        text: { type: string, example: "Updated text about Bali!" }
+        media_ids:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        place_tag: { type: string, example: "bali_indonesia" }
+
+    # ---- Comments ----
+    CommentCreateRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, example: "Amazing view! Enjoy your trip." }
+        media_ids:
+          type: array
+          maxItems: 1
+          items: { type: string }
+          example: ["med_ghi789"]
+
+    CommentResponse:
+      type: object
+      required: [comment_id, post_id, text, author_id, created_at]
+      properties:
+        comment_id: { type: string, example: "cmt_456" }
+        post_id: { type: string, example: "post_789" }
+        text: { type: string, example: "Amazing view! Enjoy your trip." }
+        images:
+          type: array
+          items: { type: string, format: uri }
+        author_id: { type: string, example: "usr_999" }
+        created_at: { type: string, format: date-time }
+
+    # ---- Reactions ----
+    ReactionRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, example: "like" }
+
+    ReactionResponse:
+      type: object
+      required: [user, type, created_at]
+      properties:
+        user: { $ref: '#/components/schemas/UserPreviewResponse' }
+        type: { type: string, example: "like" }
+        created_at: { type: string, format: date-time }
+
+    ReactionListResponse:
+      type: object
+      required: [items, total_count, counts_by_type, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ReactionResponse' }
+        total_count: { type: integer, example: 1450 }
+        counts_by_type:
+          type: object
+          additionalProperties: { type: integer }
+          example: { like: 1200, love: 250 }
+        next_cursor: { type: string, nullable: true, example: "cursor_abc123" }
+
+    # ---- Places ----
+    PlaceResponse:
+      type: object
+      required: [tag, post_count, reactions_count]
+      properties:
+        tag: { type: string, example: "paris_france" }
+        post_count: { type: integer, example: 1450 }
+        reactions_count: { type: integer, example: 98500 }
+
+    PlaceListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PlaceResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_ghi789" }
+
+    FeedResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PostResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_abc123" }
+
+    CommentListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CommentResponse' }
+        next_cursor: { type: string, nullable: true, example: "cursor_def456" }
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Media
+  - name: Posts
+  - name: Comments
+  - name: Reactions
+  - name: Subscriptions
+  - name: Feed
+  - name: Places
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        "200":
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        "201":
+          description: Пользователь создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        "200":
+          description: Токен обновлен
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token]
+                properties:
+                  access_token: { type: string }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /users/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathUserId'
+    get:
+      tags: [Users]
+      responses:
+        "200":
+          description: Профиль пользователя
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /users/{user_id}/subscriptions:
+    parameters:
+      - $ref: '#/components/parameters/PathUserId'
+    get:
+      tags: [Subscriptions]
+      description: На кого подписан пользователь. Постранично, счётчик отдаётся в total_count.
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список подписок
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserListResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /users/{user_id}/followers:
+    parameters:
+      - $ref: '#/components/parameters/PathUserId'
+    get:
+      tags: [Subscriptions]
+      description: Кто подписан на пользователя. Постранично, счётчик отдаётся в total_count.
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список подписчиков
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserListResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /media:
+    post:
+      tags: [Media]
+      description: >
+        Создаёт медиа и возвращает presigned URL. Байты файла клиент грузит
+        отдельным PUT прямо в объектное хранилище, минуя API. Полученный
+        media_id затем передаётся в media_ids поста или комментария.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MediaUploadRequest' }
+      responses:
+        "201":
+          description: Ссылка на загрузку выдана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaUploadResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /posts:
+    post:
+      tags: [Posts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostCreateRequest' }
+      responses:
+        "201":
+          description: Пост успешно создан (Full Entity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /posts/{post_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathPostId'
+    get:
+      tags: [Posts]
+      responses:
+        "200":
+          description: Успешно
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [Posts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostUpdateRequest' }
+      responses:
+        "200":
+          description: Пост обновлен (Full Entity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Posts]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /posts/{post_id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/PathPostId'
+    post:
+      tags: [Comments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentCreateRequest' }
+      responses:
+        "201":
+          description: Комментарий создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    get:
+      tags: [Comments]
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список комментариев
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentListResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /posts/{post_id}/comments/{comment_id}:
+    parameters:
+      - $ref: '#/components/parameters/PathPostId'
+      - $ref: '#/components/parameters/PathCommentId'
+    put:
+      tags: [Comments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommentCreateRequest' }
+      responses:
+        "200":
+          description: Комментарий обновлен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Comments]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /posts/{post_id}/reactions:
+    parameters:
+      - $ref: '#/components/parameters/PathPostId'
+    get:
+      tags: [Reactions]
+      description: >
+        Кто отреагировал на пост. Список постраничный: у популярного поста
+        десятки тысяч реакций и целиком их не тянут. Для ленты хватает
+        reactions_count и my_reaction прямо в PostResponse, эта ручка нужна
+        только при открытии списка реакций.
+      parameters:
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список реакций
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReactionListResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Reactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReactionRequest' }
+      responses:
+        "200":
+          description: Реакция успешно добавлена/изменена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StandardStatusResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Reactions]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /subscriptions/{target_user_id}:
+    parameters:
+      - name: target_user_id
+        in: path
+        required: true
+        schema: { type: string, example: "usr_999" }
+    post:
+      tags: [Subscriptions]
+      responses:
+        "200":
+          description: Подписка успешно оформлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StandardStatusResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Subscriptions]
+      responses:
+        "204": { $ref: '#/components/responses/NoContent' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "404": { $ref: '#/components/responses/NotFoundError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /feed:
+    get:
+      tags: [Feed]
+      parameters:
+        - name: subscription_only
+          in: query
+          schema: { type: boolean, example: true }
+        - name: place_tag
+          in: query
+          schema: { type: string, example: "bali_indonesia" }
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Лента постов
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeedResponse' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
+
+  /places:
+    get:
+      tags: [Places]
+      description: >
+        Коллекция мест. Популярность — это порядок сортировки, а не отдельный
+        ресурс, поэтому задаётся параметром sort, а не суффиксом в пути.
+      parameters:
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [reactions_count, post_count, created_at]
+            default: reactions_count
+        - $ref: '#/components/parameters/QueryLimit'
+        - $ref: '#/components/parameters/QueryCursor'
+      responses:
+        "200":
+          description: Список мест
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaceListResponse' }
+        "400": { $ref: '#/components/responses/BadRequestError' }
+        "401": { $ref: '#/components/responses/UnauthorizedError' }
+        "500": { $ref: '#/components/responses/InternalServerError' }
