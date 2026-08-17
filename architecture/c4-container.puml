@@ -1,0 +1,79 @@
+@startuml c4-container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title C4 Level 2 — Социальная сеть для путешественников
+
+Person(traveler, "Путешественник", "Публикует посты, читает ленту, ставит реакции и комментарии, управляет подписками, ищет места")
+
+System_Ext(cdn, "CDN", "Раздача превью и фотографий, offload 95% медиатрафика")
+
+System_Boundary(c1, "Социальная сеть для путешественников") {
+
+    Container(mobile, "Мобильное приложение", "iOS / Android", "Публикация постов с фото, лента, реакции, комментарии, подписки, поиск мест")
+    Container(web, "Веб-приложение", "SPA, браузер", "Те же сценарии в браузере")
+
+    Container(lb, "Load Balancer", "L4/L7", "Терминация TLS, распределение запросов между инстансами API Gateway, ~1 млн одновременных соединений")
+    Container(gateway, "API Gateway", "REST / JSON", "Единая точка входа, проверка JWT, роутинг, rate limiting")
+
+    Container(authService, "Сервис аутентификации", "REST API", "Регистрация, вход, выдача и обновление токенов")
+    Container(publicationsService, "Сервис публикаций", "REST API", "Посты, комментарии, реакции, популярные места и посты по месту")
+    Container(subsService, "Сервис подписок", "REST API", "Подписки и подписчики, выдача списка подписчиков автора")
+    Container(feedService, "Сервис ленты", "REST API", "Отдаёт общую ленту и ленту подписок постранично по курсору")
+    Container(feedWorker, "Воркер раскладки ленты", "Consumer", "Fan-out on write: раскладывает id нового поста по лентам подписчиков")
+    Container(mediaService, "Сервис медиа", "REST API", "Выдаёт presigned URL на загрузку, подтверждает загрузку файла")
+    Container(mediaWorker, "Воркер обработки медиа", "Consumer", "Снимает EXIF, генерирует превью 40 KB и рендишены")
+
+    ContainerQueue(broker, "Брокер сообщений", "Kafka", "События «новый пост» и «медиа загружено»")
+
+    ContainerDb(postsDb, "БД постов", "PostgreSQL, RF=2", "Посты и локации, ключ шардирования user_id")
+    ContainerDb(commentsDb, "БД комментариев", "PostgreSQL, RF=2", "Комментарии, ключ шардирования post_id")
+    ContainerDb(reactionsDb, "БД реакций", "PostgreSQL, RF=2", "Реакции как источник истины, ключ шардирования post_id")
+    ContainerDb(subsDb, "БД подписок", "PostgreSQL, RF=2", "Подписки по follower_id, обратный индекс подписчиков по followee_id")
+    ContainerDb(usersDb, "БД пользователей", "PostgreSQL, RF=2", "Учётные данные и профили")
+    ContainerDb(counters, "Кеш счётчиков", "Redis, RF=2", "Счётчики реакций, комментариев и подписчиков")
+    ContainerDb(feedCache, "Кеш лент", "Redis, RF=2", "Предрассчитанные ленты подписчиков: списки id постов")
+    ContainerDb(storage, "Объектное хранилище", "S3-совместимое, EC 4+2", "Оригиналы фотографий, превью и рендишены")
+}
+
+Rel(traveler, mobile, "Использует")
+Rel(traveler, web, "Использует")
+
+Rel(mobile, lb, "Вызывает API", "HTTPS / JSON")
+Rel(web, lb, "Вызывает API", "HTTPS / JSON")
+Rel(lb, gateway, "Распределяет запросы")
+
+Rel(gateway, authService, "Вход, регистрация, обновление токена")
+Rel(gateway, publicationsService, "Посты, комментарии, реакции, места")
+Rel(gateway, subsService, "Подписки и подписчики")
+Rel(gateway, feedService, "Запросы ленты")
+Rel(gateway, mediaService, "Запросы на загрузку медиа")
+
+Rel(authService, usersDb, "Читает и пишет пользователей", "SQL")
+
+Rel(publicationsService, postsDb, "Читает и пишет посты и локации", "SQL")
+Rel(publicationsService, commentsDb, "Читает и пишет комментарии", "SQL")
+Rel(publicationsService, reactionsDb, "Пишет реакции батчами", "SQL")
+Rel(publicationsService, counters, "Инкрементит и читает счётчики вместо UPDATE строки поста")
+Rel(publicationsService, broker, "Публикует событие «новый пост»")
+
+Rel(subsService, subsDb, "Читает и пишет подписки", "SQL")
+
+Rel(broker, feedWorker, "Доставляет событие «новый пост»")
+Rel(feedWorker, subsService, "Запрашивает подписчиков автора")
+Rel(feedWorker, feedCache, "Пишет id поста в ленты подписчиков")
+Rel(feedService, feedCache, "Читает страницу ленты по курсору")
+Rel(feedService, publicationsService, "Дотягивает посты и счётчики по списку id")
+
+Rel(mediaService, storage, "Создаёт объект и выдаёт presigned URL")
+Rel(mediaService, broker, "Публикует событие «медиа загружено»")
+Rel(mobile, storage, "Грузит файл напрямую по presigned URL, минуя API", "HTTPS PUT")
+Rel(web, storage, "Грузит файл напрямую по presigned URL, минуя API", "HTTPS PUT")
+Rel(broker, mediaWorker, "Доставляет событие «медиа загружено»")
+Rel(mediaWorker, storage, "Читает оригинал, пишет превью и рендишены")
+
+Rel(mobile, cdn, "Скачивает превью и фотографии", "HTTPS")
+Rel(web, cdn, "Скачивает превью и фотографии", "HTTPS")
+Rel(cdn, storage, "Origin pull при промахе кеша", "HTTPS")
+
+SHOW_LEGEND()
+@enduml
